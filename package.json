@@ -1,0 +1,22 @@
+{
+  "name": "ai-avatar-programming-sim",
+  "version": "1.0.0",
+  "description": "A 3D simulation where avatars are programmed using JavaScript, with AI-assisted development",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "start-node": "npx http-server -p 8000 -c-1"
+  },
+  "keywords": [
+    "threejs",
+    "physics",
+    "simulation",
+    "ai",
+    "programming",
+    "game",
+    "cannon.js"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}

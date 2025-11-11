@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Avatar Programming Sim</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 400px;
+            background: rgba(20, 20, 30, 0.95);
+            border: 2px solid #0ff;
+            border-radius: 8px;
+            color: #0ff;
+            padding: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        }
+
+        #ui-panel h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px solid #0ff;
+            padding-bottom: 10px;
+        }
+
+        #code-editor {
+            width: 100%;
+            min-height: 300px;
+            background: #111;
+            color: #0f0;
+            border: 1px solid #0ff;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            resize: vertical;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #0ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px 5px 0;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #0cc;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .avatar-list {
+            margin-top: 15px;
+        }
+
+        .avatar-item {
+            background: rgba(0, 255, 255, 0.1);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 3px solid #0ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .avatar-item:hover {
+            background: rgba(0, 255, 255, 0.2);
+        }
+
+        .avatar-item.selected {
+            background: rgba(0, 255, 255, 0.3);
+            border-left-width: 5px;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 20, 30, 0.95);
+            border: 2px solid #0ff;
+            border-radius: 8px;
+            color: #0ff;
+            padding: 15px;
+            font-size: 12px;
+            max-width: 300px;
+        }
+
+        .example-link {
+            color: #0ff;
+            text-decoration: underline;
+            cursor: pointer;
+            margin: 5px 0;
+            display: block;
+        }
+
+        .example-link:hover {
+            color: #0cc;
+        }
+
+        #console {
+            margin-top: 15px;
+            background: #000;
+            border: 1px solid #0ff;
+            padding: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+
+        .console-msg {
+            margin: 2px 0;
+            color: #0f0;
+        }
+
+        .console-error {
+            color: #f00;
+        }
+
+        select {
+            background: #111;
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 5px;
+            margin: 5px 0;
+            width: 100%;
+            font-family: 'Courier New', monospace;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <h2>⚡ AI AVATAR PROGRAMMING SIM</h2>
+
+        <div>
+            <label>Select Avatar:</label>
+            <select id="avatar-select">
+                <option value="0">Avatar 1 (Blue)</option>
+                <option value="1">Avatar 2 (Red)</option>
+                <option value="2">Avatar 3 (Green)</option>
+            </select>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <label>Program Your Avatar:</label>
+            <textarea id="code-editor" spellcheck="false">// Program your avatar!
+// Available API:
+// - this.moveForward(speed)
+// - this.moveBackward(speed)
+// - this.turnLeft(angle)
+// - this.turnRight(angle)
+// - this.jump()
+// - this.getPosition() -> {x, y, z}
+// - this.getVelocity() -> {x, y, z}
+// - this.getNearbyAvatars(radius) -> [avatars]
+// - this.getNearbyObjects(radius) -> [objects]
+// - this.createBox(offset) -> creates a box
+// - this.log(message)
+
+// Example: Walk in a circle
+this.moveForward(2);
+this.turnRight(0.02);
+
+// Jump occasionally
+if (Math.random() < 0.01) {
+    this.jump();
+}</textarea>
+        </div>
+
+        <div>
+            <button id="upload-btn">▶ Upload Program</button>
+            <button id="stop-btn">⏹ Stop Program</button>
+            <button id="spawn-btn">➕ Spawn Avatar</button>
+        </div>
+
+        <div>
+            <h3 style="margin-top: 15px; font-size: 14px;">Examples:</h3>
+            <a class="example-link" data-example="follow">🎯 Follow Nearest Avatar</a>
+            <a class="example-link" data-example="dance">💃 Dance Pattern</a>
+            <a class="example-link" data-example="builder">🏗️ World Builder</a>
+            <a class="example-link" data-example="explorer">🗺️ Random Explorer</a>
+        </div>
+
+        <div id="console">
+            <div class="console-msg">> System ready</div>
+        </div>
+    </div>
+
+    <div id="info">
+        <strong>Controls:</strong><br>
+        🖱️ Click + Drag: Rotate Camera<br>
+        🔍 Scroll: Zoom<br>
+        💻 Program avatars with JavaScript<br>
+        🤖 Use AI to help you code behaviors!
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
