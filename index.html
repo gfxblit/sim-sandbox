@@ -158,6 +158,80 @@
             font-family: 'Courier New', monospace;
             border-radius: 4px;
         }
+
+        /* Mobile and tablet optimizations */
+        @media (max-width: 768px) {
+            #ui-panel {
+                width: calc(100vw - 20px);
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                padding: 15px;
+                max-height: 50vh;
+                font-size: 14px;
+            }
+
+            #ui-panel h2 {
+                font-size: 16px;
+                margin-bottom: 10px;
+            }
+
+            #code-editor {
+                min-height: 200px;
+                font-size: 11px;
+            }
+
+            button {
+                padding: 12px 16px;
+                font-size: 14px;
+                margin: 8px 4px 4px 0;
+                min-height: 44px; /* iOS recommended touch target */
+            }
+
+            #console {
+                max-height: 100px;
+                font-size: 10px;
+            }
+
+            #info {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                max-width: none;
+                font-size: 11px;
+                padding: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #ui-panel {
+                padding: 10px;
+            }
+
+            #ui-panel h2 {
+                font-size: 14px;
+            }
+
+            button {
+                width: 100%;
+                margin: 5px 0;
+            }
+
+            #code-editor {
+                min-height: 150px;
+                font-size: 10px;
+            }
+        }
+
+        /* Prevent text selection during touch interactions */
+        canvas {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: none;
+        }
     </style>
 </head>
 <body>
@@ -233,6 +307,8 @@ function(world) {
         <strong>Controls:</strong><br>
         🖱️ Click + Drag: Rotate Camera<br>
         🔍 Scroll: Zoom<br>
+        📱 Touch + Drag: Rotate Camera<br>
+        🤏 Pinch: Zoom In/Out<br>
         💻 Program avatars with JavaScript<br>
         🤖 Use AI to help you code behaviors!
     </div>
