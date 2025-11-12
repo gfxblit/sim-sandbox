@@ -147,6 +147,7 @@ class AvatarSim {
         const rotationSpeed = 0.005;
         const cameraDistance = 35;
 
+        // Mouse controls
         this.renderer.domElement.addEventListener('mousedown', (e) => {
             isDragging = true;
             previousMousePosition = { x: e.clientX, y: e.clientY };
@@ -187,6 +188,100 @@ class AvatarSim {
             const scale = newDistance / currentDistance;
             this.camera.position.multiplyScalar(scale);
         });
+
+        // Touch controls
+        let isTouching = false;
+        let previousTouchPosition = { x: 0, y: 0 };
+        let initialPinchDistance = 0;
+        let isPinching = false;
+
+        this.renderer.domElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length === 1) {
+                // Single finger touch for rotation
+                isTouching = true;
+                isPinching = false;
+                previousTouchPosition = {
+                    x: e.touches[0].clientX,
+                    y: e.touches[0].clientY
+                };
+            } else if (e.touches.length === 2) {
+                // Two finger touch for pinch zoom
+                isTouching = false;
+                isPinching = true;
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            }
+        }, { passive: false });
+
+        this.renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length === 1 && isTouching) {
+                // Single finger drag - rotate camera
+                const touchX = e.touches[0].clientX;
+                const touchY = e.touches[0].clientY;
+
+                const deltaX = touchX - previousTouchPosition.x;
+                const deltaY = touchY - previousTouchPosition.y;
+
+                const phi = Math.atan2(this.camera.position.z, this.camera.position.x);
+                const theta = Math.atan2(
+                    Math.sqrt(this.camera.position.x ** 2 + this.camera.position.z ** 2),
+                    this.camera.position.y
+                );
+
+                const newPhi = phi - deltaX * rotationSpeed;
+                const newTheta = Math.max(0.1, Math.min(Math.PI - 0.1, theta + deltaY * rotationSpeed));
+
+                this.camera.position.x = cameraDistance * Math.sin(newTheta) * Math.cos(newPhi);
+                this.camera.position.y = cameraDistance * Math.cos(newTheta);
+                this.camera.position.z = cameraDistance * Math.sin(newTheta) * Math.sin(newPhi);
+                this.camera.lookAt(0, 2, 0);
+
+                previousTouchPosition = { x: touchX, y: touchY };
+            } else if (e.touches.length === 2 && isPinching) {
+                // Two finger pinch - zoom
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const currentPinchDistance = Math.sqrt(dx * dx + dy * dy);
+
+                const pinchDelta = initialPinchDistance - currentPinchDistance;
+                const zoomSpeed = 0.05;
+
+                const currentDistance = this.camera.position.length();
+                const newDistance = Math.max(10, Math.min(100, currentDistance + pinchDelta * zoomSpeed));
+                const scale = newDistance / currentDistance;
+                this.camera.position.multiplyScalar(scale);
+
+                initialPinchDistance = currentPinchDistance;
+            }
+        }, { passive: false });
+
+        this.renderer.domElement.addEventListener('touchend', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length === 0) {
+                isTouching = false;
+                isPinching = false;
+            } else if (e.touches.length === 1) {
+                // Transition from pinch to single touch
+                isTouching = true;
+                isPinching = false;
+                previousTouchPosition = {
+                    x: e.touches[0].clientX,
+                    y: e.touches[0].clientY
+                };
+            }
+        }, { passive: false });
+
+        this.renderer.domElement.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            isTouching = false;
+            isPinching = false;
+        }, { passive: false });
     }
 
     setupUI() {
