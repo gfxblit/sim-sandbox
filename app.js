@@ -290,6 +290,32 @@ class AvatarSim {
         const spawnBtn = document.getElementById('spawn-btn');
         const codeEditor = document.getElementById('code-editor');
         const avatarSelect = document.getElementById('avatar-select');
+        const uiToggle = document.getElementById('ui-toggle');
+        const uiPanel = document.getElementById('ui-panel');
+
+        // UI Toggle functionality
+        // Start with UI collapsed on mobile for better viewing
+        const isMobile = window.innerWidth <= 768;
+        let isUIVisible = !isMobile;
+
+        if (isMobile) {
+            uiPanel.classList.add('collapsed');
+            uiToggle.textContent = '⚙';
+            uiToggle.title = 'Show UI Panel';
+        }
+
+        uiToggle.addEventListener('click', () => {
+            isUIVisible = !isUIVisible;
+            if (isUIVisible) {
+                uiPanel.classList.remove('collapsed');
+                uiToggle.textContent = '☰';
+                uiToggle.title = 'Hide UI Panel';
+            } else {
+                uiPanel.classList.add('collapsed');
+                uiToggle.textContent = '⚙';
+                uiToggle.title = 'Show UI Panel';
+            }
+        });
 
         uploadBtn.addEventListener('click', () => {
             const code = codeEditor.value;

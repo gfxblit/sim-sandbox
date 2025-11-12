@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>AI Avatar Programming Sim</title>
     <style>
         * {
@@ -36,6 +38,44 @@
             max-height: calc(100vh - 40px);
             overflow-y: auto;
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #ui-panel.collapsed {
+            transform: translateX(calc(100% + 30px));
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 255, 255, 0.9);
+            border: 2px solid #0ff;
+            border-radius: 50%;
+            color: #000;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            z-index: 1000;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        #ui-toggle:hover {
+            background: #0ff;
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.7);
+        }
+
+        #ui-toggle:active {
+            transform: scale(0.95);
         }
 
         #ui-panel h2 {
@@ -163,12 +203,24 @@
         @media (max-width: 768px) {
             #ui-panel {
                 width: calc(100vw - 20px);
-                top: 10px;
+                top: 80px;
                 right: 10px;
                 left: 10px;
                 padding: 15px;
-                max-height: 50vh;
+                max-height: calc(100vh - 90px);
                 font-size: 14px;
+            }
+
+            #ui-panel.collapsed {
+                transform: translateY(calc(-100% - 100px));
+            }
+
+            #ui-toggle {
+                top: 10px;
+                right: 10px;
+                width: 60px;
+                height: 60px;
+                font-size: 28px;
             }
 
             #ui-panel h2 {
@@ -177,7 +229,7 @@
             }
 
             #code-editor {
-                min-height: 200px;
+                min-height: 150px;
                 font-size: 11px;
             }
 
@@ -194,32 +246,72 @@
             }
 
             #info {
-                bottom: 10px;
-                left: 10px;
-                right: 10px;
-                max-width: none;
-                font-size: 11px;
-                padding: 10px;
+                display: none; /* Hide on mobile to reduce clutter */
             }
         }
 
         @media (max-width: 480px) {
             #ui-panel {
                 padding: 10px;
+                top: 80px;
+                max-height: calc(100vh - 90px);
             }
 
             #ui-panel h2 {
                 font-size: 14px;
             }
 
-            button {
+            button:not(#ui-toggle) {
                 width: 100%;
                 margin: 5px 0;
             }
 
             #code-editor {
-                min-height: 150px;
+                min-height: 120px;
                 font-size: 10px;
+            }
+
+            select {
+                font-size: 14px;
+            }
+        }
+
+        /* Landscape mode optimizations */
+        @media (max-width: 896px) and (max-height: 414px) and (orientation: landscape) {
+            #ui-panel {
+                width: 350px;
+                max-height: calc(100vh - 20px);
+                top: 10px;
+                right: 10px;
+                left: auto;
+                padding: 10px;
+                font-size: 12px;
+            }
+
+            #ui-toggle {
+                top: 10px;
+                right: 10px;
+                width: 50px;
+                height: 50px;
+            }
+
+            #code-editor {
+                min-height: 80px;
+                font-size: 10px;
+            }
+
+            #console {
+                max-height: 60px;
+            }
+
+            #ui-panel.collapsed {
+                transform: translateX(calc(100% + 20px));
+            }
+
+            button:not(#ui-toggle) {
+                padding: 8px 12px;
+                font-size: 12px;
+                min-height: 36px;
             }
         }
 
@@ -236,6 +328,8 @@
 </head>
 <body>
     <div id="canvas-container"></div>
+
+    <button id="ui-toggle" title="Toggle UI Panel">☰</button>
 
     <div id="ui-panel">
         <h2>⚡ AI AVATAR PROGRAMMING SIM</h2>
