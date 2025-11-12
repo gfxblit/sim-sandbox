@@ -249,61 +249,78 @@ class AvatarSim {
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
         if (Math.abs(angleDiff) > 0.1) {
-            return { turn: angleDiff * 0.3 };
+            return [
+                { type: 'turn', angle: angleDiff * 0.3 }
+            ];
         } else {
-            return { move: 'forward', speed: 3 };
+            return [
+                { type: 'move', direction: 'forward', speed: 3 }
+            ];
         }
     }
 
-    return { move: 'forward', speed: 1, turn: 0.02 };
+    return [
+        { type: 'move', direction: 'forward', speed: 1 },
+        { type: 'turn', angle: 0.02 }
+    ];
 }`,
             dance: `function(world) {
     // Dance in a pattern
     const wave = Math.sin(world.time * 2);
-    const jump = Math.sin(world.time * 3) > 0.7;
+    const shouldJump = Math.sin(world.time * 3) > 0.7;
 
-    return {
-        move: 'forward',
-        speed: 2 + wave,
-        turn: -0.05,
-        jump: jump
-    };
+    const actions = [
+        { type: 'move', direction: 'forward', speed: 2 + wave },
+        { type: 'turn', angle: -0.05 }
+    ];
+
+    if (shouldJump) {
+        actions.push({ type: 'jump' });
+    }
+
+    return actions;
 }`,
             builder: `function(world) {
     // Build structures while moving
     const shouldBuild = Math.random() < 0.02;
 
-    return {
-        move: 'forward',
-        speed: 1,
-        turn: -0.03,
-        createBox: shouldBuild ? { x: 0, y: 0, z: -2 } : null,
-        log: shouldBuild ? "Building..." : null
-    };
+    const actions = [
+        { type: 'move', direction: 'forward', speed: 1 },
+        { type: 'turn', angle: -0.03 }
+    ];
+
+    if (shouldBuild) {
+        actions.push({ type: 'createBox', offset: { x: 0, y: 0, z: -2 } });
+        actions.push({ type: 'log', message: "Building..." });
+    }
+
+    return actions;
 }`,
             explorer: `function(world) {
     // Random explorer that avoids obstacles
-    let turn = 0;
+    let turnAngle = 0;
 
     // Random direction changes
     if (Math.random() < 0.02) {
-        turn = (Math.random() - 0.5) * 0.2;
+        turnAngle = (Math.random() - 0.5) * 0.2;
     }
 
     // Avoid nearby objects
     if (world.objects.length > 0 && world.objects[0].distance < 5) {
-        turn = 0.1;
+        turnAngle = 0.1;
     }
 
-    const jump = Math.random() < 0.005;
+    const actions = [
+        { type: 'move', direction: 'forward', speed: 2 },
+        { type: 'turn', angle: turnAngle }
+    ];
 
-    return {
-        move: 'forward',
-        speed: 2,
-        turn: turn,
-        jump: jump,
-        log: jump ? "Exploring!" : null
-    };
+    if (Math.random() < 0.005) {
+        actions.push({ type: 'jump' });
+        actions.push({ type: 'log', message: "Exploring!" });
+    }
+
+    return actions;
 }`
         };
 
@@ -596,76 +613,117 @@ class Avatar {
     }
 
     executeActions(actions, worldObjects) {
-        // Handle movement
-        if (actions.move === 'forward' && actions.speed) {
-            const direction = new CANNON.Vec3(
-                Math.sin(this.rotation) * actions.speed,
+        // Actions should be an array of action objects
+        if (!Array.isArray(actions)) {
+            console.warn('Actions must be an array');
+            return;
+        }
+
+        // Process each action
+        actions.forEach(action => {
+            if (!action || !action.type) return;
+
+            switch (action.type) {
+                case 'move':
+                    this.handleMoveAction(action);
+                    break;
+
+                case 'turn':
+                    this.handleTurnAction(action);
+                    break;
+
+                case 'jump':
+                    this.handleJumpAction(action);
+                    break;
+
+                case 'createBox':
+                    this.handleCreateBoxAction(action, worldObjects);
+                    break;
+
+                case 'log':
+                    this.handleLogAction(action);
+                    break;
+
+                default:
+                    console.warn(`Unknown action type: ${action.type}`);
+            }
+        });
+    }
+
+    handleMoveAction(action) {
+        const direction = action.direction || 'forward';
+        const speed = action.speed || 0;
+
+        if (direction === 'forward') {
+            const dir = new CANNON.Vec3(
+                Math.sin(this.rotation) * speed,
                 0,
-                Math.cos(this.rotation) * actions.speed
+                Math.cos(this.rotation) * speed
             );
-            this.body.velocity.x = direction.x;
-            this.body.velocity.z = direction.z;
-        } else if (actions.move === 'backward' && actions.speed) {
-            const direction = new CANNON.Vec3(
-                -Math.sin(this.rotation) * actions.speed,
+            this.body.velocity.x = dir.x;
+            this.body.velocity.z = dir.z;
+        } else if (direction === 'backward') {
+            const dir = new CANNON.Vec3(
+                -Math.sin(this.rotation) * speed,
                 0,
-                -Math.cos(this.rotation) * actions.speed
+                -Math.cos(this.rotation) * speed
             );
-            this.body.velocity.x = direction.x;
-            this.body.velocity.z = direction.z;
-        } else if (actions.move === 'stop') {
+            this.body.velocity.x = dir.x;
+            this.body.velocity.z = dir.z;
+        } else if (direction === 'stop') {
             this.body.velocity.x = 0;
             this.body.velocity.z = 0;
         }
+    }
 
-        // Handle turning (positive = left, negative = right)
-        if (actions.turn) {
-            this.rotation += actions.turn;
-        }
+    handleTurnAction(action) {
+        // angle: positive = left, negative = right
+        const angle = action.angle || 0;
+        this.rotation += angle;
+    }
 
-        // Handle jumping
-        if (actions.jump && Math.abs(this.body.velocity.y) < 0.1) {
+    handleJumpAction(action) {
+        if (Math.abs(this.body.velocity.y) < 0.1) {
             this.body.velocity.y = 5;
         }
+    }
 
-        // Handle box creation
-        if (actions.createBox) {
-            const offset = actions.createBox;
-            const size = 1;
-            const worldPos = new THREE.Vector3(
-                this.body.position.x + (offset.x || 0),
-                this.body.position.y + (offset.y || 0) + 1,
-                this.body.position.z + (offset.z || 0)
-            );
+    handleCreateBoxAction(action, worldObjects) {
+        const offset = action.offset || { x: 0, y: 0, z: 0 };
+        const size = 1;
+        const worldPos = new THREE.Vector3(
+            this.body.position.x + (offset.x || 0),
+            this.body.position.y + (offset.y || 0) + 1,
+            this.body.position.z + (offset.z || 0)
+        );
 
-            // Visual
-            const geometry = new THREE.BoxGeometry(size, size, size);
-            const material = new THREE.MeshStandardMaterial({
-                color: this.color,
-                roughness: 0.7
-            });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.copy(worldPos);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            this.scene.add(mesh);
+        // Visual
+        const geometry = new THREE.BoxGeometry(size, size, size);
+        const material = new THREE.MeshStandardMaterial({
+            color: this.color,
+            roughness: 0.7
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.copy(worldPos);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        this.scene.add(mesh);
 
-            // Physics
-            const shape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
-            const body = new CANNON.Body({
-                mass: 0.5,
-                position: new CANNON.Vec3(worldPos.x, worldPos.y, worldPos.z)
-            });
-            body.addShape(shape);
-            this.world.addBody(body);
+        // Physics
+        const shape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
+        const body = new CANNON.Body({
+            mass: 0.5,
+            position: new CANNON.Vec3(worldPos.x, worldPos.y, worldPos.z)
+        });
+        body.addShape(shape);
+        this.world.addBody(body);
 
-            worldObjects.push({ mesh, body });
-        }
+        worldObjects.push({ mesh, body });
+    }
 
-        // Handle logging
-        if (actions.log) {
-            console.log(`[Avatar]: ${actions.log}`);
-        }
+    handleLogAction(action) {
+        const message = action.message || '';
+        console.log(`[Avatar]: ${message}`);
     }
 }
 

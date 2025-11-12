@@ -24,21 +24,18 @@ Think of it as a simplified Second Life where avatars are autonomous agents that
 
 ## Avatar Programming API
 
-Programs are **pure functions** that receive world state and return actions. This structured approach ensures predictable, frame-by-frame execution.
+Programs are **pure functions** that receive world state and return **declarative actions**. This structured approach ensures predictable, frame-by-frame execution with clear action semantics.
 
 ### Function Signature
 
 ```javascript
 function(world) {
     // Your logic here
-    return {
-        move: 'forward',  // Action to take
-        speed: 2,
-        turn: 0.02,
-        jump: false,
-        createBox: null,
-        log: null
-    };
+    // Return an array of action objects
+    return [
+        { type: 'move', direction: 'forward', speed: 2 },
+        { type: 'turn', angle: 0.02 }
+    ];
 }
 ```
 
@@ -72,18 +69,54 @@ Sorted by distance (closest first).
 #### `world.time` - Current Time
 Current simulation time in seconds (useful for time-based behaviors).
 
-### Action Return Object
+### Declarative Actions
 
-Return an object specifying what actions to take this frame:
+Return an **array of action objects**. Each action has a `type` field and type-specific parameters.
 
-- `move` - `'forward'`, `'backward'`, `'stop'`, or `null`
-- `speed` - Movement speed (units per frame)
-- `turn` - Rotation change in radians (**positive = left, negative = right**)
-- `jump` - `true` to jump (only works if `onGround`)
-- `createBox` - `{x, y, z}` offset to create a box, or `null`
-- `log` - String message to log, or `null`
+#### Available Action Types
 
-All fields are optional. Only specify what you want to change.
+**Movement Action**
+```javascript
+{ type: 'move', direction: 'forward'|'backward'|'stop', speed: number }
+```
+- `direction`: Direction to move
+- `speed`: Movement speed in units per frame
+
+**Turn Action**
+```javascript
+{ type: 'turn', angle: number }
+```
+- `angle`: Rotation change in radians (**positive = left, negative = right**)
+
+**Jump Action**
+```javascript
+{ type: 'jump' }
+```
+- No parameters needed
+- Only executes if avatar is on ground
+
+**Create Box Action**
+```javascript
+{ type: 'createBox', offset: {x, y, z} }
+```
+- `offset`: Position offset relative to avatar
+
+**Log Action**
+```javascript
+{ type: 'log', message: string }
+```
+- `message`: Message to output to console
+
+#### Action Array Example
+```javascript
+// Multiple actions can be performed in one frame
+return [
+    { type: 'move', direction: 'forward', speed: 3 },
+    { type: 'turn', angle: 0.05 },
+    { type: 'jump' },
+    { type: 'log', message: "Moving forward!" }
+];
+```
 
 ## Example Programs
 
@@ -91,11 +124,10 @@ All fields are optional. Only specify what you want to change.
 ```javascript
 function(world) {
     // Walk forward and turn slowly in a circle
-    return {
-        move: 'forward',
-        speed: 2,
-        turn: 0.02
-    };
+    return [
+        { type: 'move', direction: 'forward', speed: 2 },
+        { type: 'turn', angle: 0.02 }
+    ];
 }
 ```
 
@@ -116,14 +148,21 @@ function(world) {
 
         // Turn towards target or move forward
         if (Math.abs(angleDiff) > 0.1) {
-            return { turn: angleDiff * 0.3 };
+            return [
+                { type: 'turn', angle: angleDiff * 0.3 }
+            ];
         } else {
-            return { move: 'forward', speed: 3 };
+            return [
+                { type: 'move', direction: 'forward', speed: 3 }
+            ];
         }
     }
 
     // No avatars visible, just wander
-    return { move: 'forward', speed: 1, turn: 0.02 };
+    return [
+        { type: 'move', direction: 'forward', speed: 1 },
+        { type: 'turn', angle: 0.02 }
+    ];
 }
 ```
 
@@ -133,13 +172,17 @@ function(world) {
     // Build a structure while moving in a circle
     const shouldBuild = Math.random() < 0.02;
 
-    return {
-        move: 'forward',
-        speed: 1,
-        turn: -0.03,
-        createBox: shouldBuild ? { x: 0, y: 0, z: -2 } : null,
-        log: shouldBuild ? "Building..." : null
-    };
+    const actions = [
+        { type: 'move', direction: 'forward', speed: 1 },
+        { type: 'turn', angle: -0.03 }
+    ];
+
+    if (shouldBuild) {
+        actions.push({ type: 'createBox', offset: { x: 0, y: 0, z: -2 } });
+        actions.push({ type: 'log', message: "Building..." });
+    }
+
+    return actions;
 }
 ```
 
@@ -150,30 +193,33 @@ function(world) {
     const wave = Math.sin(world.time * 2);
     const shouldJump = Math.sin(world.time * 3) > 0.7;
 
-    return {
-        move: 'forward',
-        speed: 2 + wave,
-        turn: -0.05,
-        jump: shouldJump
-    };
+    const actions = [
+        { type: 'move', direction: 'forward', speed: 2 + wave },
+        { type: 'turn', angle: -0.05 }
+    ];
+
+    if (shouldJump) {
+        actions.push({ type: 'jump' });
+    }
+
+    return actions;
 }
 ```
 
 ### Obstacle Avoider
 ```javascript
 function(world) {
-    let turn = 0;
-
     // If there's an object close and in view, turn away
+    let turnAngle = 0;
+
     if (world.objects.length > 0 && world.objects[0].distance < 5) {
-        turn = 0.15;  // Turn left to avoid
+        turnAngle = 0.15;  // Turn left to avoid
     }
 
-    return {
-        move: 'forward',
-        speed: 2,
-        turn: turn
-    };
+    return [
+        { type: 'move', direction: 'forward', speed: 2 },
+        { type: 'turn', angle: turnAngle }
+    ];
 }
 ```
 
@@ -191,7 +237,12 @@ This is where the magic happens! You can use AI assistants to help you create co
 > - `world.objects` (nearby objects in 135° FOV: position, distance, angle)
 > - `world.time` (current time in seconds)
 >
-> The function should return an action object: `{move, speed, turn, jump, createBox, log}`
+> The function must return an array of declarative action objects:
+> - `{ type: 'move', direction: 'forward'|'backward'|'stop', speed: number }`
+> - `{ type: 'turn', angle: number }` (positive = left, negative = right)
+> - `{ type: 'jump' }`
+> - `{ type: 'createBox', offset: {x, y, z} }`
+> - `{ type: 'log', message: string }`
 >
 > Can you write a function that makes the avatar patrol in a square pattern, and if it detects another avatar, approach and circle around them?"
 
@@ -262,10 +313,12 @@ Want to add more features? Here are some ideas:
 ## Tips for Programming
 
 - **Pure Functions**: Programs run every frame (60 FPS), so keep them efficient
+- **Declarative Actions**: Return arrays of explicit action objects - it's clear what you're commanding
 - **Stateless**: Functions receive fresh world state each frame - use `world.time` for temporal patterns
 - **Field of View**: Avatars only see what's within 20 units and 135° viewing cone
 - **Probabilistic Behavior**: Use `Math.random()` for non-deterministic actions
-- **Debugging**: Return `{log: "message"}` to output debug info to console
+- **Conditional Actions**: Build action arrays dynamically with conditionals and `.push()`
+- **Debugging**: Include `{ type: 'log', message: '...' }` actions to output debug info
 - **Emergent Behavior**: Simple rules + multiple avatars = complex interactions
 - **Test Incrementally**: Start with basic movement, then add perception and reactions
 
@@ -273,7 +326,7 @@ Want to add more features? Here are some ideas:
 
 This simulation explores a unique interaction paradigm: **indirect control through programming**. Instead of using WASD keys, you write the brain of your avatar. With AI assistants, even non-programmers can create sophisticated behaviors by describing what they want in natural language.
 
-The **structured function API** (world state in → actions out) creates a clean contract that's easy for both humans and AI to reason about. Limited perception (field of view, range) forces interesting emergent behaviors as avatars react to their local environment.
+The **declarative action system** makes available behaviors explicit and composable. Each action has a clear type and purpose. The **structured function API** (world state in → action array out) creates a clean contract that's easy for both humans and AI to reason about. Limited perception (field of view, range) forces interesting emergent behaviors as avatars react to their local environment.
 
 The result is a sandbox where:
 - **Players become designers** rather than controllers
@@ -281,6 +334,7 @@ The result is a sandbox where:
 - **Emergence happens** when simple programs interact in complex ways
 - **Creativity is expressed through logic** rather than reflexes
 - **Predictability meets chaos** through deterministic rules and probabilistic choices
+- **Actions are explicit** - you can see exactly what an avatar can do
 
 ## Credits
 

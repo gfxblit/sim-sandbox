@@ -178,7 +178,7 @@
         <div style="margin-top: 15px;">
             <label>Program Your Avatar:</label>
             <textarea id="code-editor" spellcheck="false">// Define a function that receives world state
-// and returns actions to perform
+// and returns an array of actions to perform
 
 function(world) {
     // world.self = your avatar state
@@ -195,15 +195,18 @@ function(world) {
     //
     // world.time = current time in seconds
 
-    // Return an action object:
-    return {
-        move: 'forward',  // 'forward', 'backward', 'stop', or null
-        speed: 2,         // movement speed
-        turn: 0.02,       // turn angle (+ = left, - = right)
-        jump: false,      // jump if on ground
-        createBox: null,  // {x, y, z} offset or null
-        log: null         // message to log or null
-    };
+    // Return an array of declarative actions:
+    return [
+        { type: 'move', direction: 'forward', speed: 2 },
+        { type: 'turn', angle: 0.02 }
+    ];
+
+    // Available actions:
+    // { type: 'move', direction: 'forward'|'backward'|'stop', speed: number }
+    // { type: 'turn', angle: number }  // + = left, - = right
+    // { type: 'jump' }
+    // { type: 'createBox', offset: {x, y, z} }
+    // { type: 'log', message: string }
 }</textarea>
         </div>
 
