@@ -177,27 +177,33 @@
 
         <div style="margin-top: 15px;">
             <label>Program Your Avatar:</label>
-            <textarea id="code-editor" spellcheck="false">// Program your avatar!
-// Available API:
-// - this.moveForward(speed)
-// - this.moveBackward(speed)
-// - this.turnLeft(angle)
-// - this.turnRight(angle)
-// - this.jump()
-// - this.getPosition() -> {x, y, z}
-// - this.getVelocity() -> {x, y, z}
-// - this.getNearbyAvatars(radius) -> [avatars]
-// - this.getNearbyObjects(radius) -> [objects]
-// - this.createBox(offset) -> creates a box
-// - this.log(message)
+            <textarea id="code-editor" spellcheck="false">// Define a function that receives world state
+// and returns actions to perform
 
-// Example: Walk in a circle
-this.moveForward(2);
-this.turnRight(0.02);
+function(world) {
+    // world.self = your avatar state
+    //   .position {x, y, z}
+    //   .velocity {x, y, z}
+    //   .rotation (angle in radians)
+    //   .onGround (boolean)
+    //
+    // world.avatars = nearby avatars in view
+    //   [{position, velocity, distance, angle}]
+    //
+    // world.objects = nearby objects in view
+    //   [{position, distance, angle}]
+    //
+    // world.time = current time in seconds
 
-// Jump occasionally
-if (Math.random() < 0.01) {
-    this.jump();
+    // Return an action object:
+    return {
+        move: 'forward',  // 'forward', 'backward', 'stop', or null
+        speed: 2,         // movement speed
+        turn: 0.02,       // turn angle (+ = left, - = right)
+        jump: false,      // jump if on ground
+        createBox: null,  // {x, y, z} offset or null
+        log: null         // message to log or null
+    };
 }</textarea>
         </div>
 

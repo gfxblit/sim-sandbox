@@ -236,61 +236,74 @@ class AvatarSim {
 
         // Example programs
         const examples = {
-            follow: `// Follow the nearest avatar
-const nearby = this.getNearbyAvatars(20);
-if (nearby.length > 0) {
-    const target = nearby[0];
-    const pos = this.getPosition();
-    const dx = target.x - pos.x;
-    const dz = target.z - pos.z;
-    const angle = Math.atan2(dz, dx);
-    const myAngle = this.getRotation();
+            follow: `function(world) {
+    // Follow the nearest avatar
+    if (world.avatars.length > 0) {
+        const target = world.avatars[0];
+        const dx = target.position.x - world.self.position.x;
+        const dz = target.position.z - world.self.position.z;
+        const targetAngle = Math.atan2(dz, dx);
 
-    let angleDiff = angle - myAngle;
-    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        let angleDiff = targetAngle - world.self.rotation;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-    if (Math.abs(angleDiff) > 0.1) {
-        if (angleDiff > 0) this.turnLeft(0.05);
-        else this.turnRight(0.05);
-    } else {
-        this.moveForward(3);
+        if (Math.abs(angleDiff) > 0.1) {
+            return { turn: angleDiff * 0.3 };
+        } else {
+            return { move: 'forward', speed: 3 };
+        }
     }
+
+    return { move: 'forward', speed: 1, turn: 0.02 };
 }`,
-            dance: `// Dance in a pattern
-const time = Date.now() / 1000;
-const wave = Math.sin(time * 2);
+            dance: `function(world) {
+    // Dance in a pattern
+    const wave = Math.sin(world.time * 2);
+    const jump = Math.sin(world.time * 3) > 0.7;
 
-this.turnRight(0.05);
-this.moveForward(2 + wave);
-
-if (Math.sin(time * 3) > 0.7) {
-    this.jump();
+    return {
+        move: 'forward',
+        speed: 2 + wave,
+        turn: -0.05,
+        jump: jump
+    };
 }`,
-            builder: `// Build structures
-const pos = this.getPosition();
-if (Math.random() < 0.02) {
-    this.createBox({ x: 0, y: 0, z: -2 });
-    this.log("Building...");
-}
+            builder: `function(world) {
+    // Build structures while moving
+    const shouldBuild = Math.random() < 0.02;
 
-this.moveForward(1);
-this.turnRight(0.03);`,
-            explorer: `// Random explorer
-if (Math.random() < 0.02) {
-    this.turnRight((Math.random() - 0.5) * 0.2);
-}
+    return {
+        move: 'forward',
+        speed: 1,
+        turn: -0.03,
+        createBox: shouldBuild ? { x: 0, y: 0, z: -2 } : null,
+        log: shouldBuild ? "Building..." : null
+    };
+}`,
+            explorer: `function(world) {
+    // Random explorer that avoids obstacles
+    let turn = 0;
 
-this.moveForward(2);
+    // Random direction changes
+    if (Math.random() < 0.02) {
+        turn = (Math.random() - 0.5) * 0.2;
+    }
 
-const nearby = this.getNearbyObjects(5);
-if (nearby.length > 0) {
-    this.turnRight(0.1);
-}
+    // Avoid nearby objects
+    if (world.objects.length > 0 && world.objects[0].distance < 5) {
+        turn = 0.1;
+    }
 
-if (Math.random() < 0.005) {
-    this.jump();
-    this.log("Exploring!");
+    const jump = Math.random() < 0.005;
+
+    return {
+        move: 'forward',
+        speed: 2,
+        turn: turn,
+        jump: jump,
+        log: jump ? "Exploring!" : null
+    };
 }`
         };
 
@@ -441,14 +454,17 @@ class Avatar {
 
     uploadProgram(code) {
         try {
-            // Create a safe execution context
-            const programFunction = new Function('ctx', `
-                with(ctx) {
-                    ${code}
-                }
-            `);
+            // Expect a function that takes world state and returns actions
+            // Wrap the code in a function declaration
+            const wrappedCode = `return (${code});`;
+            const programFunction = new Function(wrappedCode);
             this.program = code;
-            this.programFunction = programFunction;
+            this.programFunction = programFunction();
+
+            // Validate it's a function
+            if (typeof this.programFunction !== 'function') {
+                throw new Error('Program must be a function that takes (world) as parameter');
+            }
         } catch (error) {
             throw new Error(`Program compilation failed: ${error.message}`);
         }
@@ -470,8 +486,11 @@ class Avatar {
         // Execute program
         if (this.programFunction) {
             try {
-                const api = this.createAPI(allAvatars, worldObjects);
-                this.programFunction(api);
+                const worldState = this.buildWorldState(allAvatars, worldObjects);
+                const actions = this.programFunction(worldState);
+                if (actions) {
+                    this.executeActions(actions, worldObjects);
+                }
             } catch (error) {
                 console.error('Program execution error:', error);
                 this.stopProgram();
@@ -479,127 +498,174 @@ class Avatar {
         }
     }
 
-    createAPI(allAvatars, worldObjects) {
-        const self = this;
-        return {
-            moveForward: (speed) => {
-                const direction = new CANNON.Vec3(
-                    Math.sin(self.rotation) * speed,
-                    0,
-                    Math.cos(self.rotation) * speed
-                );
-                self.body.velocity.x = direction.x;
-                self.body.velocity.z = direction.z;
-            },
-            moveBackward: (speed) => {
-                const direction = new CANNON.Vec3(
-                    -Math.sin(self.rotation) * speed,
-                    0,
-                    -Math.cos(self.rotation) * speed
-                );
-                self.body.velocity.x = direction.x;
-                self.body.velocity.z = direction.z;
-            },
-            turnLeft: (angle) => {
-                self.rotation += angle;
-            },
-            turnRight: (angle) => {
-                self.rotation -= angle;
-            },
-            jump: () => {
-                if (Math.abs(self.body.velocity.y) < 0.1) {
-                    self.body.velocity.y = 5;
-                }
-            },
-            getPosition: () => {
-                return {
-                    x: self.body.position.x,
-                    y: self.body.position.y,
-                    z: self.body.position.z
-                };
-            },
-            getVelocity: () => {
-                return {
-                    x: self.body.velocity.x,
-                    y: self.body.velocity.y,
-                    z: self.body.velocity.z
-                };
-            },
-            getRotation: () => {
-                return self.rotation;
-            },
-            getNearbyAvatars: (radius) => {
-                const nearby = [];
-                const myPos = self.body.position;
+    buildWorldState(allAvatars, worldObjects) {
+        const perceptionRange = 20; // Distance avatars can perceive
+        const perceptionAngle = Math.PI * 0.75; // 135 degrees (field of view)
 
-                allAvatars.forEach(avatar => {
-                    if (avatar === self) return;
-                    const distance = myPos.distanceTo(avatar.body.position);
-                    if (distance < radius) {
-                        nearby.push({
+        // Build self state
+        const self = {
+            position: {
+                x: this.body.position.x,
+                y: this.body.position.y,
+                z: this.body.position.z
+            },
+            velocity: {
+                x: this.body.velocity.x,
+                y: this.body.velocity.y,
+                z: this.body.velocity.z
+            },
+            rotation: this.rotation,
+            onGround: Math.abs(this.body.velocity.y) < 0.1
+        };
+
+        // Forward direction vector
+        const forwardX = Math.sin(this.rotation);
+        const forwardZ = Math.cos(this.rotation);
+
+        // Find nearby avatars within perception range and viewing angle
+        const avatars = [];
+        allAvatars.forEach(avatar => {
+            if (avatar === this) return;
+
+            const dx = avatar.body.position.x - this.body.position.x;
+            const dz = avatar.body.position.z - this.body.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+
+            if (distance < perceptionRange) {
+                // Check if within viewing angle
+                const dotProduct = (dx * forwardX + dz * forwardZ) / distance;
+                const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+
+                if (angle < perceptionAngle / 2) {
+                    avatars.push({
+                        position: {
                             x: avatar.body.position.x,
                             y: avatar.body.position.y,
-                            z: avatar.body.position.z,
-                            distance: distance
-                        });
-                    }
-                });
+                            z: avatar.body.position.z
+                        },
+                        velocity: {
+                            x: avatar.body.velocity.x,
+                            y: avatar.body.velocity.y,
+                            z: avatar.body.velocity.z
+                        },
+                        distance: distance,
+                        angle: angle
+                    });
+                }
+            }
+        });
 
-                return nearby.sort((a, b) => a.distance - b.distance);
-            },
-            getNearbyObjects: (radius) => {
-                const nearby = [];
-                const myPos = self.body.position;
+        // Sort by distance
+        avatars.sort((a, b) => a.distance - b.distance);
 
-                worldObjects.forEach(obj => {
-                    const distance = myPos.distanceTo(obj.body.position);
-                    if (distance < radius) {
-                        nearby.push({
+        // Find nearby objects within perception range and viewing angle
+        const objects = [];
+        worldObjects.forEach(obj => {
+            const dx = obj.body.position.x - this.body.position.x;
+            const dz = obj.body.position.z - this.body.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+
+            if (distance < perceptionRange) {
+                // Check if within viewing angle
+                const dotProduct = (dx * forwardX + dz * forwardZ) / distance;
+                const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+
+                if (angle < perceptionAngle / 2) {
+                    objects.push({
+                        position: {
                             x: obj.body.position.x,
                             y: obj.body.position.y,
-                            z: obj.body.position.z,
-                            distance: distance
-                        });
-                    }
-                });
-
-                return nearby.sort((a, b) => a.distance - b.distance);
-            },
-            createBox: (offset = { x: 0, y: 0, z: 0 }) => {
-                const size = 1;
-                const worldPos = new THREE.Vector3(
-                    self.body.position.x + offset.x,
-                    self.body.position.y + offset.y + 1,
-                    self.body.position.z + offset.z
-                );
-
-                // Visual
-                const geometry = new THREE.BoxGeometry(size, size, size);
-                const material = new THREE.MeshStandardMaterial({
-                    color: self.color,
-                    roughness: 0.7
-                });
-                const mesh = new THREE.Mesh(geometry, material);
-                mesh.position.copy(worldPos);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                self.scene.add(mesh);
-
-                // Physics
-                const shape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
-                const body = new CANNON.Body({
-                    mass: 0.5,
-                    position: new CANNON.Vec3(worldPos.x, worldPos.y, worldPos.z)
-                });
-                body.addShape(shape);
-                self.world.addBody(body);
-
-                worldObjects.push({ mesh, body });
-            },
-            log: (message) => {
-                console.log(`[Avatar]: ${message}`);
+                            z: obj.body.position.z
+                        },
+                        distance: distance,
+                        angle: angle
+                    });
+                }
             }
+        });
+
+        // Sort by distance
+        objects.sort((a, b) => a.distance - b.distance);
+
+        return {
+            self,
+            avatars,
+            objects,
+            time: Date.now() / 1000
         };
+    }
+
+    executeActions(actions, worldObjects) {
+        // Handle movement
+        if (actions.move === 'forward' && actions.speed) {
+            const direction = new CANNON.Vec3(
+                Math.sin(this.rotation) * actions.speed,
+                0,
+                Math.cos(this.rotation) * actions.speed
+            );
+            this.body.velocity.x = direction.x;
+            this.body.velocity.z = direction.z;
+        } else if (actions.move === 'backward' && actions.speed) {
+            const direction = new CANNON.Vec3(
+                -Math.sin(this.rotation) * actions.speed,
+                0,
+                -Math.cos(this.rotation) * actions.speed
+            );
+            this.body.velocity.x = direction.x;
+            this.body.velocity.z = direction.z;
+        } else if (actions.move === 'stop') {
+            this.body.velocity.x = 0;
+            this.body.velocity.z = 0;
+        }
+
+        // Handle turning (positive = left, negative = right)
+        if (actions.turn) {
+            this.rotation += actions.turn;
+        }
+
+        // Handle jumping
+        if (actions.jump && Math.abs(this.body.velocity.y) < 0.1) {
+            this.body.velocity.y = 5;
+        }
+
+        // Handle box creation
+        if (actions.createBox) {
+            const offset = actions.createBox;
+            const size = 1;
+            const worldPos = new THREE.Vector3(
+                this.body.position.x + (offset.x || 0),
+                this.body.position.y + (offset.y || 0) + 1,
+                this.body.position.z + (offset.z || 0)
+            );
+
+            // Visual
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const material = new THREE.MeshStandardMaterial({
+                color: this.color,
+                roughness: 0.7
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.copy(worldPos);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.scene.add(mesh);
+
+            // Physics
+            const shape = new CANNON.Box(new CANNON.Vec3(size / 2, size / 2, size / 2));
+            const body = new CANNON.Body({
+                mass: 0.5,
+                position: new CANNON.Vec3(worldPos.x, worldPos.y, worldPos.z)
+            });
+            body.addShape(shape);
+            this.world.addBody(body);
+
+            worldObjects.push({ mesh, body });
+        }
+
+        // Handle logging
+        if (actions.log) {
+            console.log(`[Avatar]: ${actions.log}`);
+        }
     }
 }
 

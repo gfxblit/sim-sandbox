@@ -24,83 +24,156 @@ Think of it as a simplified Second Life where avatars are autonomous agents that
 
 ## Avatar Programming API
 
-Your avatar programs have access to these methods:
+Programs are **pure functions** that receive world state and return actions. This structured approach ensures predictable, frame-by-frame execution.
 
-### Movement
-- `this.moveForward(speed)` - Move forward at given speed
-- `this.moveBackward(speed)` - Move backward at given speed
-- `this.turnLeft(angle)` - Turn left by angle in radians
-- `this.turnRight(angle)` - Turn right by angle in radians
-- `this.jump()` - Jump (if on ground)
+### Function Signature
 
-### Sensing
-- `this.getPosition()` - Returns `{x, y, z}` position
-- `this.getVelocity()` - Returns `{x, y, z}` velocity
-- `this.getRotation()` - Returns rotation angle in radians
-- `this.getNearbyAvatars(radius)` - Returns array of nearby avatars with positions
-- `this.getNearbyObjects(radius)` - Returns array of nearby objects with positions
+```javascript
+function(world) {
+    // Your logic here
+    return {
+        move: 'forward',  // Action to take
+        speed: 2,
+        turn: 0.02,
+        jump: false,
+        createBox: null,
+        log: null
+    };
+}
+```
 
-### World Interaction
-- `this.createBox(offset)` - Create a box at offset from avatar position
-- `this.log(message)` - Log a message to console
+### World State Input
+
+Each frame, your function receives a `world` object:
+
+#### `world.self` - Your Avatar's State
+- `position` - `{x, y, z}` position in the world
+- `velocity` - `{x, y, z}` current velocity
+- `rotation` - Current rotation angle in radians
+- `onGround` - Boolean, true if avatar is on the ground
+
+#### `world.avatars` - Nearby Avatars (Array)
+Only includes avatars within **20 units** and **135° field of view**:
+- `position` - `{x, y, z}` avatar position
+- `velocity` - `{x, y, z}` avatar velocity
+- `distance` - Distance from you
+- `angle` - Angle from your forward direction
+
+Sorted by distance (closest first).
+
+#### `world.objects` - Nearby Objects (Array)
+Only includes objects within **20 units** and **135° field of view**:
+- `position` - `{x, y, z}` object position
+- `distance` - Distance from you
+- `angle` - Angle from your forward direction
+
+Sorted by distance (closest first).
+
+#### `world.time` - Current Time
+Current simulation time in seconds (useful for time-based behaviors).
+
+### Action Return Object
+
+Return an object specifying what actions to take this frame:
+
+- `move` - `'forward'`, `'backward'`, `'stop'`, or `null`
+- `speed` - Movement speed (units per frame)
+- `turn` - Rotation change in radians (**positive = left, negative = right**)
+- `jump` - `true` to jump (only works if `onGround`)
+- `createBox` - `{x, y, z}` offset to create a box, or `null`
+- `log` - String message to log, or `null`
+
+All fields are optional. Only specify what you want to change.
 
 ## Example Programs
 
 ### Simple Walker
 ```javascript
-// Walk forward and turn slowly
-this.moveForward(2);
-this.turnRight(0.02);
+function(world) {
+    // Walk forward and turn slowly in a circle
+    return {
+        move: 'forward',
+        speed: 2,
+        turn: 0.02
+    };
+}
 ```
 
 ### Follower AI
 ```javascript
-// Follow the nearest avatar
-const nearby = this.getNearbyAvatars(20);
-if (nearby.length > 0) {
-    const target = nearby[0];
-    const pos = this.getPosition();
-    const dx = target.x - pos.x;
-    const dz = target.z - pos.z;
-    const angle = Math.atan2(dz, dx);
-    const myAngle = this.getRotation();
+function(world) {
+    // Follow the nearest avatar in view
+    if (world.avatars.length > 0) {
+        const target = world.avatars[0];
+        const dx = target.position.x - world.self.position.x;
+        const dz = target.position.z - world.self.position.z;
+        const targetAngle = Math.atan2(dz, dx);
 
-    let angleDiff = angle - myAngle;
-    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        // Calculate angle difference
+        let angleDiff = targetAngle - world.self.rotation;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-    if (Math.abs(angleDiff) > 0.1) {
-        if (angleDiff > 0) this.turnLeft(0.05);
-        else this.turnRight(0.05);
-    } else {
-        this.moveForward(3);
+        // Turn towards target or move forward
+        if (Math.abs(angleDiff) > 0.1) {
+            return { turn: angleDiff * 0.3 };
+        } else {
+            return { move: 'forward', speed: 3 };
+        }
     }
+
+    // No avatars visible, just wander
+    return { move: 'forward', speed: 1, turn: 0.02 };
 }
 ```
 
 ### Builder Bot
 ```javascript
-// Build a structure while walking
-const pos = this.getPosition();
-if (Math.random() < 0.02) {
-    this.createBox({ x: 0, y: 0, z: -2 });
-    this.log("Building...");
+function(world) {
+    // Build a structure while moving in a circle
+    const shouldBuild = Math.random() < 0.02;
+
+    return {
+        move: 'forward',
+        speed: 1,
+        turn: -0.03,
+        createBox: shouldBuild ? { x: 0, y: 0, z: -2 } : null,
+        log: shouldBuild ? "Building..." : null
+    };
 }
-this.moveForward(1);
-this.turnRight(0.03);
 ```
 
 ### Dancing Avatar
 ```javascript
-// Dance with rhythm
-const time = Date.now() / 1000;
-const wave = Math.sin(time * 2);
+function(world) {
+    // Dance with rhythm based on time
+    const wave = Math.sin(world.time * 2);
+    const shouldJump = Math.sin(world.time * 3) > 0.7;
 
-this.turnRight(0.05);
-this.moveForward(2 + wave);
+    return {
+        move: 'forward',
+        speed: 2 + wave,
+        turn: -0.05,
+        jump: shouldJump
+    };
+}
+```
 
-if (Math.sin(time * 3) > 0.7) {
-    this.jump();
+### Obstacle Avoider
+```javascript
+function(world) {
+    let turn = 0;
+
+    // If there's an object close and in view, turn away
+    if (world.objects.length > 0 && world.objects[0].distance < 5) {
+        turn = 0.15;  // Turn left to avoid
+    }
+
+    return {
+        move: 'forward',
+        speed: 2,
+        turn: turn
+    };
 }
 ```
 
@@ -112,13 +185,21 @@ This is where the magic happens! You can use AI assistants to help you create co
 
 **To Claude, ChatGPT, or any AI assistant:**
 
-> "I'm programming an avatar in a 3D simulation. I have access to these methods: [paste API above]. Can you write me a program that makes the avatar patrol in a square pattern, and if it detects another avatar nearby, it should approach and circle around them?"
+> "I'm programming an avatar in a 3D simulation. Each frame, my function receives a `world` object with:
+> - `world.self` (position, velocity, rotation, onGround)
+> - `world.avatars` (nearby avatars in 135° FOV: position, velocity, distance, angle)
+> - `world.objects` (nearby objects in 135° FOV: position, distance, angle)
+> - `world.time` (current time in seconds)
+>
+> The function should return an action object: `{move, speed, turn, jump, createBox, log}`
+>
+> Can you write a function that makes the avatar patrol in a square pattern, and if it detects another avatar, approach and circle around them?"
 
-> "Create an avatar behavior that explores the world randomly, but avoids obstacles and jumps over objects in its path. Use the getNearbyObjects() method."
+> "Write an avatar program that explores randomly but avoids obstacles when they're within 3 units. When it sees an object directly ahead, it should turn away."
 
-> "Write a program for my avatar to build a spiral tower using createBox(), where each box is placed slightly rotated and higher than the last."
+> "Create a program that builds a spiral tower using createBox(). Track state across frames using world.time to control when and where to place boxes."
 
-> "Make my avatar act like a sheepdog - it should detect all nearby avatars and try to herd them together into one location."
+> "Make my avatar act like a sheepdog - when it sees multiple avatars, calculate their center point and try to push them together by positioning between the furthest one and the center."
 
 ### AI Programming Workflow
 
@@ -180,22 +261,26 @@ Want to add more features? Here are some ideas:
 
 ## Tips for Programming
 
-- Programs run every frame, so keep them efficient
-- Use `Math.random()` for probabilistic behaviors
-- Store state using `Date.now()` for time-based patterns
-- Test with one avatar before applying to multiple
-- Use `this.log()` to debug your programs
-- Combine simple behaviors to create complex emergent behavior
+- **Pure Functions**: Programs run every frame (60 FPS), so keep them efficient
+- **Stateless**: Functions receive fresh world state each frame - use `world.time` for temporal patterns
+- **Field of View**: Avatars only see what's within 20 units and 135° viewing cone
+- **Probabilistic Behavior**: Use `Math.random()` for non-deterministic actions
+- **Debugging**: Return `{log: "message"}` to output debug info to console
+- **Emergent Behavior**: Simple rules + multiple avatars = complex interactions
+- **Test Incrementally**: Start with basic movement, then add perception and reactions
 
 ## Philosophy
 
 This simulation explores a unique interaction paradigm: **indirect control through programming**. Instead of using WASD keys, you write the brain of your avatar. With AI assistants, even non-programmers can create sophisticated behaviors by describing what they want in natural language.
 
+The **structured function API** (world state in → actions out) creates a clean contract that's easy for both humans and AI to reason about. Limited perception (field of view, range) forces interesting emergent behaviors as avatars react to their local environment.
+
 The result is a sandbox where:
 - **Players become designers** rather than controllers
-- **AI serves as a programming partner**
-- **Emergence happens** when programs interact
-- **Creativity is expressed through code**
+- **AI serves as a programming partner** to translate ideas into code
+- **Emergence happens** when simple programs interact in complex ways
+- **Creativity is expressed through logic** rather than reflexes
+- **Predictability meets chaos** through deterministic rules and probabilistic choices
 
 ## Credits
 
